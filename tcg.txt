@@ -1,0 +1,516 @@
+import pygame as pg
+import random
+
+class DiceRoll:
+    def __init__(self):
+        self.dice_type = ['hydro', 'dendro', 'pyro', 'electro', 'geo'] # five types of elements
+        self.result = [] # store the dice result
+
+    def roll_dice(self):
+        self.result = [random.choice(self.dice_type) for _ in range(10)] # each time can roll 10 dice
+        print("You rolled dice: ", self.result) 
+
+    def confirm_dice(self):
+        # give the player a chance to confirm or reroll dice
+        while True:
+            player_int = input("confirm or continue roll (c/r): ")
+            if player_int.lower() == 'c':
+                return True
+            elif player_int.lower() == 'r':
+                self.roll_dice()
+            else:
+                print("please enter 'c' or 'r'")
+
+    def count_elements(self):
+        # count each element dice in the result
+        count = {element: 0 for element in self.dice_type}
+        for dice in self.result:
+            count[dice] += 1
+        return count
+
+class HealthPoint:
+    def __init__(self, char_hp = 10, mon_hp = 15):
+        # character health point
+        if char_hp <= 0:
+            self.char_hp = 0
+        else:
+            self.char_hp = char_hp
+
+        # monster health point
+        if mon_hp <= 0:
+            self.mon_hp = 0
+        else:
+            self.mon_hp = mon_hp 
+
+class CharacterCombatPoint:
+    def __init__(self, char_name, normal_skill = False, elemental_skill = False, elemental_burst = False):
+        self.char_name = char_name
+        self.normal_skill = normal_skill
+        self.elemental_skill = elemental_skill
+        self.elemental_burst = elemental_burst
+        self.char_cp = self.character_cp()
+
+    def character_cp(self):
+        char_cp = 0
+        # calculate the character combat points
+        if self.char_name == 'albedo(geo)':
+            if self.normal_skill:
+                char_cp = 2
+            elif self.elemental_skill:
+                char_cp = 2
+            elif self.elemental_burst:
+                char_cp = 6
+
+        elif self.char_name == 'hutao(pyro)':
+            if self.normal_skill:
+                char_cp = 2
+            elif self.elemental_skill:
+                char_cp = 2
+            elif self.elemental_burst:
+                char_cp = 4
+
+        elif self.char_name == 'nahida(dendro)':
+            if self.normal_skill:
+                char_cp = 1
+            elif self.elemental_skill:
+                char_cp = 3
+            elif self.elemental_burst:
+                char_cp = 4
+
+        elif self.char_name == 'neuvillette(hydro)':
+            if self.normal_skill:
+                char_cp = 1
+            elif self.elemental_skill:
+                char_cp = 2
+            elif self.elemental_burst:
+                char_cp = 3
+
+        elif self.char_name == 'sara(electro)':
+            if self.normal_skill:
+                char_cp = 2
+            elif self.elemental_skill:
+                char_cp = 2
+            elif self.elemental_burst:
+                char_cp = 5
+
+        return char_cp
+
+    def __repr__(self):
+        return f"CharacterCombatPoint(char_name = {self.char_name}, char_cp = {self.char_cp})"
+
+class MonsterCombatPoint:
+    def __init__(self, mon_name, mon_attack=None):
+        self.mon_name = mon_name
+        self.mon_attack = mon_attack or random.choice(['mon_normal_skill', 'mon_elemental_skill', 'mon_elemental_burst'])
+        self.mon_cp = self.monster_cp()
+
+    def monster_cp(self):
+        mon_cp = 0
+        # calculate the monster combat points
+        if self.mon_name == 'cryo_hypostasis':
+            if self.mon_attack == 'mon_normal_skill':
+                mon_cp = 1
+            elif self.mon_attack == 'mon_elemental_skill':
+                mon_cp = 2
+            elif self.mon_attack == 'mon_elemental_burst':
+                mon_cp = 5
+
+        elif self.mon_name == 'dvalin':
+            if self.mon_attack == 'mon_normal_skill':
+                mon_cp = 2
+            elif self.mon_attack == 'mon_elemental_skill':
+                mon_cp = 3
+            elif self.mon_attack == 'mon_elemental_burst':
+                mon_cp = 5
+
+        elif self.mon_name == 'thunder_bird':
+            if self.mon_attack == 'mon_normal_skill':
+                mon_cp = 2
+            elif self.mon_attack == 'mon_elemental_skill':
+                mon_cp = 3
+            elif self.mon_attack == 'mon_elemental_burst':
+                mon_cp = 4
+
+        return mon_cp
+
+class TCG:
+    def __init__(self):
+        pg.init()
+        self.screen = pg.display.set_mode((900, 600))
+        self.board = pg.image.load('TCG_board.png')
+        self.board = pg.transform.scale(self.board, (900, 600))
+        self.font = pg.font.SysFont('dejavuserif', 20)
+        pg.display.update()
+
+        self.prepare_cards()
+        self.select_character = [] # store 3 characters has selected
+        self.select_monster = [] # store the monster has selected
+        self.state = 'choose_character'
+        self.dice_roll = DiceRoll()
+        self.dice_confirmation = False
+        self.character_selected = False
+        self.display_charac_skill = False
+        self.selected_character = None
+
+        self.character_hp = {char_name: HealthPoint().char_hp for char_name in ['albedo(geo)', 'hutao(pyro)', 'nahida(dendro)', 'neuvillette(hydro)', 'sara(electro)']}
+        self.monster_hp = HealthPoint().mon_hp
+
+    def check_round_end_click(self, pos):
+        # for the round end sign display
+        x, y = pos
+        round_x, round_y = self.round_end_position
+        if round_x <= x <= round_x + 50 and round_y <= y <= round_y + 50:
+            print("roll dice")
+            print("you end the round")
+            self.dice_roll.roll_dice()
+            self.dice_confirmation = True
+            self.state = 'roll_dice'
+
+    def use_dice_for_skill(self, element, required_count):
+        element_count = self.dice_roll.count_elements()
+        # check element dice usage on skills
+        if element_count[element] >= required_count:
+            print(f"Using {required_count} {element} dice for the skill.")
+            count = 0
+            new_result = [] # update the left dice
+            for dice in self.dice_roll.result:
+                if dice == element and count < required_count:
+                    count += 1
+                else:
+                    new_result.append(dice)
+            self.dice_roll.result = new_result
+            print("Remaining dice:", self.dice_roll.result)
+            return True
+        else:
+            print(f"Not enough {element} dice. Needed: {required_count}, available: {element_count[element]}")
+            return False    
+
+    def prepare_cards(self):
+        # playable character cards
+        self.character_card = {'albedo(geo)': pg.transform.scale(pg.image.load('card_albedo.png'), (80, 150)),
+                               'hutao(pyro)': pg.transform.scale(pg.image.load('card_hutao.png'), (80, 150)),
+                               'nahida(dendro)': pg.transform.scale(pg.image.load('card_nahida.png'), (80, 150)),
+                               'neuvillette(hydro)': pg.transform.scale(pg.image.load('card_neuvillette.png'), (80, 150)),
+                               'sara(electro)': pg.transform.scale(pg.image.load('card_sara.png'), (80, 150))}
+
+        # opponent cards
+        self.monster_card = {'cryo_hypostasis': pg.transform.scale(pg.image.load('card_cryo_hypostasis.png'), (80, 150)),
+                             'dvalin': pg.transform.scale(pg.image.load('card_dvalin.png'), (80, 150)),
+                             'thunder_bird': pg.transform.scale(pg.image.load('card_thunder_bird.png'), (80, 150))}
+
+        # character skills
+        self.character_skills = {'normal_skill': pg.transform.scale(pg.image.load('normal_skill.png'), (50, 50)),
+                                 'elemental_skill': pg.transform.scale(pg.image.load('elemental_skill.png'), (50, 50)),
+                                 'elemental_burst': pg.transform.scale(pg.image.load('elemental_burst.png'), (50, 50))}
+
+        # display cards in a sequence
+        self.character_positions = [(200 + i * 100, 300) for i in range(len(self.character_card))]
+        self.monster_positions = [(320 + i * 100, 300) for i in range(len(self.monster_card))]
+
+        self.skill_positions = [(670, 300 + i * 60) for i in range(len(self.character_skills))]
+        self.round_end = pg.transform.scale(pg.image.load('round_end.png'), (50, 50))
+        self.round_end_position = (150, 280)
+
+    def display(self):
+        while True:
+            if not self.dice_confirmation:
+                self.screen.blit(self.board, (0, 0))
+                self.display_text()
+                for event in pg.event.get():
+                    if event.type == pg.QUIT:
+                        pg.quit()
+                        return
+                    if pg.mouse.get_pressed()[0]:
+                        self.click_cards(pg.mouse.get_pos())
+                pg.display.update()
+            else:
+                if self.dice_roll.confirm_dice():
+                    self.state = 'game_start'
+                    self.dice_confirmation = False
+        pg.display.update()            
+
+    def click_cards(self, pos):
+        x, y = pos
+        # choose 3 character
+        if self.state == 'choose_character':
+            for i, (name, card) in enumerate(self.character_card.items()):
+                card_x, card_y = self.character_positions[i]
+                if card_x <= x <= card_x + 80 and card_y <= y <= card_y + 150:
+                    if name not in self.select_character:
+                        self.select_character.append(name)
+                        print("You selected " + name)
+                        if len(self.select_character) == 3:
+                            self.state = 'choose_monster'
+                            break
+
+        # choose 1 monster
+        elif self.state == 'choose_monster':
+            for i, (name, card) in enumerate(self.monster_card.items()):
+                card_x, card_y = self.monster_positions[i]
+                if card_x <= x <= card_x + 80 and card_y <= y <= card_y + 150:
+                    if name not in self.select_monster:
+                        self.select_monster.append(name)
+                        print("You selected " + name)
+                        if len(self.select_monster) == 1:
+                            self.state = 'roll_dice'
+                            self.dice_roll.roll_dice()  
+                            self.dice_confirmation = True
+                            break
+
+        elif self.state == 'game_start':
+            self.select_character_fight(x, y)
+            return
+
+        # choose from the 3 skills
+        elif self.state == 'skill_display':
+            self.select_character_fight(x, y)
+            for i, (skill_name, card) in enumerate(self.character_skills.items()):
+                skill_x, skill_y = self.skill_positions[i]
+                self.display_charac_skill = True
+                if skill_x <= x <= skill_x + 50 and skill_y <= y <= skill_y + 50:
+                    self.character_attack(skill_name)
+                    break
+            self.check_round_end_click(pos)
+            return
+
+        pg.display.update()  
+
+    def end_round_display(self, x, y):
+        # display round end
+        print(self.state) 
+        if self.state == 'end_round':
+            sign_x, sign_y = self.round_end_position
+            print(x, sign_x, y, sign_y)
+            if sign_x <= x <= sign_x + 50 and sign_y <= y <= sign_y + 50:
+                print("Rolling dice for the next round!")
+                self.state = 'roll_dice' # roll dice again
+                self.dice_roll.roll_dice()
+                self.display_text()           
+
+    def character_attack(self, skill_name):
+        # character attack with the selected skill
+        normal_skill = (skill_name == 'normal_skill')
+        elemental_skill = (skill_name == 'elemental_skill')
+        elemental_burst = (skill_name == 'elemental_burst')
+
+        # match the according element for skills 
+        if skill_name == 'normal_skill':
+            if self.selected_character == 'albedo(geo)':
+                required_element = 'geo'
+                required_count = 1
+            elif self.selected_character == 'hutao(pyro)':
+                required_element = 'pyro'
+                required_count = 1
+            elif self.selected_character == 'nahida(dendro)':
+                required_element = 'dendro'
+                required_count = 1
+            elif self.selected_character == 'neuvillette(hydro)':
+                required_element = 'hydro'
+                required_count = 1
+            elif self.selected_character == 'sara(electro)':
+                required_element = 'electro'
+                required_count = 1
+
+        elif skill_name == 'elemental_skill':
+            if self.selected_character == 'albedo(geo)':
+                required_element = 'geo'
+                required_count = 3
+            elif self.selected_character == 'hutao(pyro)':
+                required_element = 'pyro'
+                required_count = 3
+            elif self.selected_character == 'nahida(dendro)':
+                required_element = 'dendro'
+                required_count = 5
+            elif self.selected_character == 'neuvillette(hydro)':
+                required_element = 'hydro'
+                required_count = 3
+            elif self.selected_character == 'sara(electro)':
+                required_element = 'electro'
+                required_count = 3
+
+        elif skill_name == 'elemental_burst':
+            if self.selected_character == 'albedo(geo)':
+                required_element = 'geo'
+                required_count = 3
+            elif self.selected_character == 'hutao(pyro)':
+                required_element = 'pyro'
+                required_count = 3
+            elif self.selected_character == 'nahida(dendro)':
+                required_element = 'dendro'
+                required_count = 3
+            elif self.selected_character == 'neuvillette(hydro)':
+                required_element = 'hydro'
+                required_count = 3
+            elif self.selected_character == 'sara(electro)':
+                required_element = 'electro'
+                required_count = 4
+
+        # use the dice for the skills
+        if self.use_dice_for_skill(required_element, required_count):
+            combat_point = CharacterCombatPoint(char_name = self.selected_character, normal_skill = normal_skill, elemental_skill = elemental_skill, elemental_burst = elemental_burst)
+            print(f"You used {skill_name}\nDamage: {combat_point.char_cp}")
+
+            self.monster_hp -= combat_point.char_cp # reduce the character hp
+            print(f"Monster's health: {self.monster_hp}")
+            print("Remaining dice after using skill:", self.dice_roll.result)
+
+            if self.monster_hp <= 0:
+                print("You defeated the monster!")
+                self.state = 'game_over'
+                self.display_result()
+                return
+
+            self.state = 'monster_turn'
+            self.monster_attack()
+            self.state = 'skill_display'
+        else:
+            print(f"Not enough dice to use {skill_name}")
+
+    def monster_attack(self):
+        attacking_character = random.choice(self.select_character) # attack random character
+        mon_attack = random.choice(['mon_normal_skill', 'mon_elemental_skill', 'mon_elemental_burst'])
+        combat_point = MonsterCombatPoint(mon_name = self.select_monster[0], mon_attack = mon_attack)
+        print(f"Monster used {mon_attack} on {attacking_character}\nDamage: {combat_point.mon_cp}")
+
+        self.character_hp[attacking_character] -= combat_point.mon_cp 
+        print(f"{attacking_character}'s health: {self.character_hp[attacking_character]}")
+
+        if self.character_hp[attacking_character] <= 0:
+            print(f"{attacking_character} has been defeated!")
+            self.select_character.remove(attacking_character) # remove the defeated character out
+
+        if not self.select_character:
+            print("All your characters have been defeated!")
+            self.state = 'game_over'
+            self.display_result()
+            return
+
+        self.state = 'player_turn'
+        self.state = 'skill_display'
+
+    def display_text(self): 
+        # display any text in the game
+        if self.state == 'choose_character':
+            text = self.font.render("Choose 3 character cards to fight (press the card)", True, (255, 255, 255))
+            self.screen.blit(text, (200, 200))
+            for i, (name, card) in enumerate(self.character_card.items()):
+                self.screen.blit(card, self.character_positions[i])
+
+        elif self.state == 'choose_monster':
+            text = self.font.render("Choose a monster to fight", True, (255, 255, 255))
+            self.screen.blit(text, (320, 200))
+            for i, (name, card) in enumerate(self.monster_card.items()):
+                self.screen.blit(card, self.monster_positions[i])
+
+        elif self.state == 'roll_dice':
+            text = self.font.render("Roll dice", True, (255, 255, 255))
+            self.screen.blit(text, (380, 300))
+
+        elif self.state == 'game_start':
+            self.game_start()
+            text = self.font.render("Select 1 of your characters", True, (255, 255, 255))
+            self.screen.blit(text, (320, 300))
+
+        elif self.state == 'skill_display':
+            self.skill_explain = pg.font.SysFont('dejavuserif', 10)
+            na_text = self.skill_explain.render("normal attack", True, (255, 255, 255))
+            es_text = self.skill_explain.render("elemental skill", True, (255, 255, 255))
+            eb_text = self.skill_explain.render("elemental burst", True, (255, 255, 255))
+            self.screen.blit(na_text, (670, 290))
+            self.screen.blit(es_text, (670, 350))
+            self.screen.blit(eb_text, (670, 410))
+            for i, (name, skill) in enumerate(self.character_skills.items()):
+                self.screen.blit(skill, self.skill_positions[i])
+            self.game_start()
+
+        elif self.state == 'end_round':
+            self.screen.blit(self.round_end, self.round_end_position)
+
+        pg.display.update()
+
+    def game_start(self):
+        self.screen.blit(self.board, (0, 0))
+
+        for i, name in enumerate(self.select_character):
+            char_card = self.character_card[name]
+            char_pos = (300 + i * 100, 380)
+            self.screen.blit(char_card, char_pos)
+
+            # display the characters hp on screen
+            hp_text = self.font.render(str(self.character_hp[name]), True, (255, 255, 255))
+            self.screen.blit(hp_text, (char_pos[0], char_pos[1]))
+
+        mons_name = self.select_monster[0]
+        mons_card = self.monster_card[mons_name]
+        self.screen.blit(mons_card, (400, 100))
+
+        # display the monster hp on screen
+        hp_text = self.font.render(str(self.monster_hp), True, (255, 255, 255))
+        self.screen.blit(hp_text, (400, 230))
+
+        if self.character_selected:
+            self.display_skills()
+
+    def select_character_fight(self, x, y):
+        # select the character by position
+        for i, name in enumerate(self.select_character):
+            card_x, card_y = 300 + i * 100, 380
+            if card_x <= x <= card_x + 80 and card_y <= y <= card_y + 150:
+                print("You selected " + name + " to fight (you can always change character in game)")
+                self.character_selected = True
+                self.selected_character = name
+                self.show_character_skills(name)
+                self.state = 'skill_display'
+                return
+
+    def show_character_skills(self, name):
+        # show the player the character's skill information
+        skills_info = {'albedo(geo)': "normal attack: 2 physical dmg (1 geo dice)\n"
+                      "elemental skill: 2 geo dmg (3 geo dice)\n"
+                      "elemental burst: 6 geo dmg (3 geo dice)",
+
+                       'hutao(pyro)': "normal attack: 2 physical dmg (1 pyro dice)\n"
+                       "elemental skill: 2 pyro dmg (3 pyro dice)\n"
+                       "elemental burst: 4 pyro dmg(3 pyro dice)",
+
+                        'nahida(dendro)': "normal attack: 1 dendro dmg (1 dendro dice)\n"
+                        "elemental skill: 3 dendro dmg (5 dendro dice)\n"
+                        "elemental burst: 4 dendro dmg (3 dendro dice)",
+
+                        'neuvillette(hydro)': "normal attack: 1 hydro dmg (1 hydro dice)\n"
+                        "elemental skill: 2 hydro dmg(3 hydro dice)\n"
+                        "elemental burst: 3 hydro dmg (3 hydro dice)",
+
+                        'sara(electro)': "normal attack: 2 physical dmg (1 electro dice)\n"
+                        "elemental skill: 2 electro dmg(3 electro dice)\n"
+                        "elemental burst: 5 electro dmg (4 electro dice)"}
+        print(skills_info[name])
+
+    def display_skills(self):
+        # display skills
+        for i, (name, skill) in enumerate(self.character_skills.items()):
+            skill_pos = self.skill_positions[i]
+            self.screen.blit(skill, skill_pos)
+        self.display_charac_skill = True
+
+        self.skill_explain = pg.font.SysFont('dejavuserif', 10)
+        na_text = self.skill_explain.render("normal attack", True, (255, 255, 255))
+        es_text = self.skill_explain.render("elemental skill", True, (255, 255, 255))
+        eb_text = self.skill_explain.render("elemental burst", True, (255, 255, 255))
+        self.screen.blit(na_text, (670, 290))
+        self.screen.blit(es_text, (670, 350))
+        self.screen.blit(eb_text, (670, 410))
+
+        self.screen.blit(self.round_end, self.round_end_position)
+
+    def display_result(self):
+        # game result
+        if self.monster_hp <= 0:
+            print("Player won")
+
+        elif not self.select_character:
+            print("Monster won")
+
+if __name__ == '__main__':
+    game = TCG()
+    game.display()
